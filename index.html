@@ -69,6 +69,14 @@
 </head>
 <body class="bg-slate-900 text-white min-h-screen flex flex-col justify-center items-center">
 
+    <!-- Global Custom Toast Notification (Replaces alert) -->
+    <div id="toastNotification" class="fixed top-5 left-1/2 -translate-x-1/2 z-[100] hidden transition-all duration-300">
+        <div class="glass-panel border border-emerald-500/40 px-6 py-3 rounded-2xl shadow-2xl flex items-center gap-3 text-white text-sm font-bold bg-slate-900/90 backdrop-blur-md">
+            <i class="fa-solid fa-circle-info text-emerald-400 text-lg"></i>
+            <span id="toastText">تم الاتصال بنجاح</span>
+        </div>
+    </div>
+
     <!-- MAIN ROLE SELECTOR SCREEN -->
     <div id="roleView" class="fixed inset-0 z-50 flex flex-col items-center justify-center p-4 bg-slate-950">
         <div class="glass-panel p-8 rounded-3xl max-w-lg w-full text-center shadow-2xl border border-slate-700">
@@ -210,9 +218,15 @@
                 <i class="fa-solid fa-gamepad text-4xl text-emerald-400 mb-4"></i>
                 <h3 class="text-2xl font-bold mb-2">إدخال رمز التلفاز</h3>
                 <p class="text-slate-400 text-xs mb-4">أدخل الرمز المكون من 4 أرقام الظاهر على شاشة التلفاز</p>
-                <input id="roomInput" type="text" maxlength="4" placeholder="مثال: 8492" class="w-full text-center text-3xl font-black uppercase py-3 rounded-2xl bg-slate-900 border border-slate-700 text-emerald-400 focus:outline-none focus:border-emerald-500 mb-4 tracking-widest">
-                <button onclick="connectToTV()" class="w-full py-4 rounded-2xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-extrabold text-lg shadow-lg">
-                    توصيل الان 🚀
+                <input id="roomInput" type="text" maxlength="4" placeholder="مثال: 8492" class="w-full text-center text-3xl font-black uppercase py-3 rounded-2xl bg-slate-900 border border-slate-700 text-emerald-400 focus:outline-none focus:border-emerald-500 mb-3 tracking-widest">
+                
+                <div id="controllerErrorMsg" class="hidden mb-3 p-3 rounded-xl bg-red-500/10 border border-red-500/30 text-red-400 text-xs font-bold text-right flex items-center gap-2">
+                    <i class="fa-solid fa-triangle-exclamation"></i>
+                    <span id="controllerErrorText">تعذر الاتصال بالرمز أدناه</span>
+                </div>
+
+                <button id="connectBtn" onclick="connectToTV()" class="w-full py-4 rounded-2xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-extrabold text-lg shadow-lg transition-all flex items-center justify-center gap-2">
+                    <span>توصيل الآن 🚀</span>
                 </button>
             </div>
         </div>
@@ -243,6 +257,26 @@
     </div>
 
     <script>
+        function showToast(msg) {
+            const toast = document.getElementById('toastNotification');
+            const text = document.getElementById('toastText');
+            if (!toast || !text) return;
+            text.innerText = msg;
+            toast.classList.remove('hidden');
+            setTimeout(() => {
+                toast.classList.add('hidden');
+            }, 3000);
+        }
+
+        function showControllerError(msg) {
+            const errBox = document.getElementById('controllerErrorMsg');
+            const errText = document.getElementById('controllerErrorText');
+            if (errBox && errText) {
+                errText.innerText = msg;
+                errBox.classList.remove('hidden');
+            }
+        }
+
         // Audio Synthesizer (No external audio files needed)
         const AudioFX = {
             ctx: null,
@@ -374,35 +408,69 @@
         }
 
         function connectToTV() {
-            const roomCode = document.getElementById('roomInput').value.trim();
+            const roomInput = document.getElementById('roomInput');
+            const roomCode = roomInput.value.trim();
+            const btn = document.getElementById('connectBtn');
+            const errBox = document.getElementById('controllerErrorMsg');
+
+            if (errBox) errBox.classList.add('hidden');
+
             if (roomCode.length !== 4) {
-                alert('الرجاء إدخال رمز مكون من 4 أرقام');
+                showControllerError('الرجاء إدخال رمز مكون من 4 أرقام بشكل صحيح');
                 return;
             }
 
+            btn.disabled = true;
+            btn.innerHTML = '<i class="fa-solid fa-spinner animate-spin"></i> جاري الاتصال بالتلفاز...';
             document.getElementById('controllerStatus').innerText = 'جاري الاتصال...';
+
+            if (peer) {
+                try { peer.destroy(); } catch(e) {}
+            }
+
             peer = new Peer();
 
-            peer.on('open', () => {
-                connection = peer.connect(`fitcut-${roomCode}`);
+            peer.on('error', (err) => {
+                console.error('Peer connection error:', err);
+                btn.disabled = false;
+                btn.innerHTML = 'توصيل الآن 🚀';
+                document.getElementById('controllerStatus').innerText = 'غير متصل';
+                showControllerError('تعذر الاتصال بـ التلفاز. تأكد من إدخال الرمز الصحيح المكون من 4 أرقام.');
+            });
 
-                connection.on('open', () => {
+            peer.on('open', () => {
+                connection = peer.connect(`fitcut-${roomCode}`, { reliable: true });
+
+                const switchToActive = () => {
                     document.getElementById('controllerConnectBox').classList.add('hidden');
                     document.getElementById('controllerActiveBox').classList.remove('hidden');
                     document.getElementById('controllerStatus').innerText = 'متصل ومستعد ⚔️';
                     document.getElementById('controllerStatus').className = 'text-xs font-bold text-emerald-400';
+                    showToast('تم الاتصال بشاشة التلفاز بنجاح! 🎮');
                     requestMotionAccess();
+                };
+
+                connection.on('open', () => {
+                    switchToActive();
                 });
 
                 connection.on('data', (data) => {
-                    if (data.type === 'GAME_UPDATE') {
+                    if (data.type === 'WELCOME') {
+                        switchToActive();
+                    } else if (data.type === 'GAME_UPDATE') {
                         document.getElementById('phoneCalories').innerText = data.calories.toFixed(1);
                     }
                 });
 
                 connection.on('close', () => {
-                    alert('تم قطع الاتصال بشاشة التلفاز');
-                    location.reload();
+                    showToast('تم قطع الاتصال بشاشة التلفاز');
+                    setTimeout(() => location.reload(), 1500);
+                });
+
+                connection.on('error', () => {
+                    btn.disabled = false;
+                    btn.innerHTML = 'توصيل الآن 🚀';
+                    showControllerError('حدث خطأ أثناء الاتصال باللعبة');
                 });
             });
         }
@@ -411,6 +479,12 @@
             document.getElementById('tvConnectOverlay').classList.add('hidden');
             document.getElementById('gameHud').classList.remove('hidden');
             AudioFX.init();
+
+            // Send handshake welcome event to mobile
+            if (connection) {
+                connection.send({ type: 'WELCOME' });
+            }
+
             startNewGame();
 
             connection.on('data', (data) => {
@@ -431,6 +505,10 @@
 
             function handlePointerMove(e) {
                 if (!connection) return;
+                
+                // Prevent screen scrolling while slashing on phone
+                if (e.cancelable) e.preventDefault();
+
                 const rect = pad.getBoundingClientRect();
                 const clientX = e.touches ? e.touches[0].clientX : e.clientX;
                 const clientY = e.touches ? e.touches[0].clientY : e.clientY;
@@ -453,8 +531,8 @@
                 if (navigator.vibrate) navigator.vibrate(10);
             }
 
-            pad.addEventListener('touchstart', (e) => { isTouching = true; handlePointerMove(e); });
-            pad.addEventListener('touchmove', (e) => { if (isTouching) handlePointerMove(e); });
+            pad.addEventListener('touchstart', (e) => { isTouching = true; handlePointerMove(e); }, { passive: false });
+            pad.addEventListener('touchmove', (e) => { if (isTouching) handlePointerMove(e); }, { passive: false });
             pad.addEventListener('touchend', () => { isTouching = false; });
             pad.addEventListener('mousemove', (e) => { if (e.buttons === 1) handlePointerMove(e); });
         }

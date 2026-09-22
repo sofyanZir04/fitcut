@@ -6,9 +6,9 @@
     <title>FitCut TV 🍎⚔️ - لعبة حرق السعرات التفاعلية</title>
     <!-- Tailwind CSS CDN -->
     <script src="https://cdn.tailwindcss.com"></script>
-    <!-- PeerJS for Low-Latency TV-Mobile Communication -->
+    <!-- PeerJS for TV-Mobile Communication -->
     <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
-    <!-- QRCode.js for seamless scanning -->
+    <!-- QRCode.js for scanning -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
     <!-- FontAwesome Icons -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
@@ -33,12 +33,11 @@
             height: 100vh;
         }
 
-        /* Glassmorphism styling */
         .glass-panel {
-            background: rgba(30, 41, 59, 0.75);
+            background: rgba(30, 41, 59, 0.85);
             backdrop-filter: blur(16px);
             -webkit-backdrop-filter: blur(16px);
-            border: 1px solid rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.12);
         }
 
         .glow-green {
@@ -49,27 +48,16 @@
             box-shadow: 0 0 25px rgba(249, 115, 22, 0.4);
         }
 
-        /* TV Canvas CSS */
         #gameCanvas {
             width: 100%;
             height: 100%;
             display: block;
             background: radial-gradient(circle at center, #1e293b 0%, #0f172a 100%);
         }
-
-        /* Custom Pulse Animations */
-        @keyframes pulse-fast {
-            0%, 100% { transform: scale(1); }
-            50% { transform: scale(1.08); }
-        }
-        .animate-pulse-fast {
-            animation: pulse-fast 0.6s infinite;
-        }
     </style>
 </head>
 <body class="bg-slate-900 text-white min-h-screen flex flex-col justify-center items-center">
 
-    <!-- Global Custom Toast Notification (Replaces alert) -->
     <div id="toastNotification" class="fixed top-5 left-1/2 -translate-x-1/2 z-[100] hidden transition-all duration-300">
         <div class="glass-panel border border-emerald-500/40 px-6 py-3 rounded-2xl shadow-2xl flex items-center gap-3 text-white text-sm font-bold bg-slate-900/90 backdrop-blur-md">
             <i class="fa-solid fa-circle-info text-emerald-400 text-lg"></i>
@@ -77,7 +65,6 @@
         </div>
     </div>
 
-    <!-- MAIN ROLE SELECTOR SCREEN -->
     <div id="roleView" class="fixed inset-0 z-50 flex flex-col items-center justify-center p-4 bg-slate-950">
         <div class="glass-panel p-8 rounded-3xl max-w-lg w-full text-center shadow-2xl border border-slate-700">
             <div class="inline-flex p-4 bg-emerald-500/10 rounded-2xl mb-4 text-emerald-400 text-5xl">
@@ -102,12 +89,9 @@
         </div>
     </div>
 
-    <!-- TV / MAIN GAME VIEW -->
     <div id="tvView" class="hidden fixed inset-0 w-full h-full">
-        <!-- Canvas for Game Rendering -->
         <canvas id="gameCanvas"></canvas>
 
-        <!-- TV Connection overlay (Before Game Starts) -->
         <div id="tvConnectOverlay" class="absolute inset-0 bg-slate-950/90 backdrop-blur-md flex flex-col items-center justify-center p-6 z-40">
             <div class="glass-panel p-8 rounded-3xl max-w-2xl w-full text-center border border-slate-700">
                 <h2 class="text-3xl font-extrabold text-white mb-2">ربط الهاتف باللعبة</h2>
@@ -129,7 +113,6 @@
                     </div>
                 </div>
 
-                <!-- Direct Play Option -->
                 <div class="mt-6 pt-4 border-t border-slate-800">
                     <button onclick="startTVDirectPlay()" class="px-6 py-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-sm font-bold transition-all border border-slate-700 flex items-center justify-center gap-2 mx-auto">
                         <i class="fa-solid fa-mouse-pointer text-emerald-400"></i>
@@ -139,9 +122,7 @@
             </div>
         </div>
 
-        <!-- HUD Overlay (During Gameplay) -->
         <div id="gameHud" class="hidden absolute top-0 left-0 right-0 p-6 flex justify-between items-start pointer-events-none z-30">
-            <!-- Calorie & Workout Stats -->
             <div class="glass-panel p-4 rounded-2xl flex items-center gap-4 border border-orange-500/30 glow-orange">
                 <div class="w-14 h-14 rounded-xl bg-gradient-to-tr from-orange-600 to-amber-500 flex items-center justify-center text-white text-2xl shadow-md">
                     <i class="fa-solid fa-fire-flame-curved animate-pulse"></i>
@@ -152,14 +133,11 @@
                 </div>
             </div>
 
-            <!-- Score & Combo -->
             <div class="text-center">
                 <div class="text-slate-400 text-xs font-bold uppercase tracking-wider mb-1">النقاط</div>
                 <div id="hudScore" class="text-5xl font-black text-white drop-shadow-md">0</div>
-                <div id="hudCombo" class="text-emerald-400 font-extrabold text-xl opacity-0 transition-opacity duration-300">COMBO x2!</div>
             </div>
 
-            <!-- Timer & Fitness Level -->
             <div class="glass-panel p-4 rounded-2xl flex items-center gap-4 border border-emerald-500/30 glow-green">
                 <div class="text-right">
                     <div class="text-slate-400 text-xs font-bold uppercase tracking-wider">الوقت المتبقي</div>
@@ -171,7 +149,6 @@
             </div>
         </div>
 
-        <!-- Workout Summary Modal -->
         <div id="summaryModal" class="hidden absolute inset-0 bg-slate-950/95 backdrop-blur-lg flex items-center justify-center p-6 z-50">
             <div class="glass-panel p-8 rounded-3xl max-w-xl w-full text-center border border-emerald-500/40 glow-green">
                 <div class="inline-flex p-4 bg-emerald-500/20 text-emerald-400 text-5xl rounded-full mb-4">
@@ -206,21 +183,18 @@
         </div>
     </div>
 
-    <!-- MOBILE CONTROLLER VIEW -->
     <div id="controllerView" class="hidden fixed inset-0 w-full h-full bg-slate-950 flex flex-col p-4 select-none">
-        <!-- Controller Header -->
         <div class="flex justify-between items-center mb-4">
             <div class="flex items-center gap-2">
                 <span class="w-3 h-3 rounded-full bg-emerald-500 animate-ping"></span>
-                <span id="controllerStatus" class="text-xs font-bold text-slate-400">متصل بالتلفاز</span>
+                <span id="controllerStatus" class="text-xs font-bold text-slate-400">جاهز للتوصيل</span>
             </div>
             <button onclick="requestMotionAccess()" class="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-emerald-400 rounded-xl text-xs font-bold border border-slate-700 flex items-center gap-2">
                 <i class="fa-solid fa-compass"></i>
-                <span>معايرة الحساس</span>
+                <span>تفعيل الحركة</span>
             </button>
         </div>
 
-        <!-- Room Join Form (If disconnected) -->
         <div id="controllerConnectBox" class="flex-1 flex flex-col items-center justify-center">
             <div class="glass-panel p-6 rounded-3xl w-full max-w-sm text-center border border-slate-700">
                 <i class="fa-solid fa-gamepad text-4xl text-emerald-400 mb-4"></i>
@@ -244,22 +218,17 @@
             </div>
         </div>
 
-        <!-- Motion Active Blade Controller Pad -->
         <div id="controllerActiveBox" class="hidden flex-1 flex flex-col items-center justify-between py-6">
-            <!-- Calorie Tracker on Phone -->
             <div class="text-center">
                 <div class="text-slate-400 text-xs uppercase font-bold">السعرات المحروقة حتّى الآن</div>
                 <div class="text-4xl font-black text-orange-400"><span id="phoneCalories">0.0</span> <span class="text-sm font-normal text-slate-300">kCal</span></div>
             </div>
 
-            <!-- Interactive Motion Pad / Touch Pad -->
             <div id="touchPad" class="w-full aspect-square max-w-xs rounded-full bg-gradient-to-tr from-slate-900 to-slate-800 border-2 border-emerald-500/30 flex flex-col items-center justify-center relative overflow-hidden shadow-2xl active:border-emerald-400">
-                <div id="touchPadRipple" class="absolute inset-0 bg-emerald-500/10 opacity-0 transition-opacity pointer-events-none"></div>
                 <i class="fa-solid fa-hand-pointer text-4xl text-emerald-400/50 mb-2 animate-bounce"></i>
                 <p class="text-slate-400 text-xs text-center px-6">حرك الهاتف في الهواء بقوة كأنك تمسك بسيف، أو اسحب أصبعك هنا للتقطيع السريع!</p>
             </div>
 
-            <!-- Intensity Meter -->
             <div class="w-full max-w-xs bg-slate-900 p-4 rounded-2xl border border-slate-800 text-center">
                 <div class="text-xs text-slate-400 mb-1 font-bold">شدة الحركة الرياضية</div>
                 <div class="w-full h-3 bg-slate-800 rounded-full overflow-hidden">
@@ -314,7 +283,6 @@
             }
         }
 
-        // Audio Synthesizer (No external audio files needed)
         const AudioFX = {
             ctx: null,
             init() {
@@ -349,20 +317,6 @@
                 gain.connect(this.ctx.destination);
                 osc.start();
                 osc.stop(this.ctx.currentTime + 0.3);
-            },
-            playCombo() {
-                if (!this.ctx) return;
-                const osc = this.ctx.createOscillator();
-                const gain = this.ctx.createGain();
-                osc.type = 'triangle';
-                osc.frequency.setValueAtTime(440, this.ctx.currentTime);
-                osc.frequency.setValueAtTime(880, this.ctx.currentTime + 0.1);
-                gain.gain.setValueAtTime(0.3, this.ctx.currentTime);
-                gain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + 0.25);
-                osc.connect(gain);
-                gain.connect(this.ctx.destination);
-                osc.start();
-                osc.stop(this.ctx.currentTime + 0.25);
             }
         };
 
@@ -373,7 +327,6 @@
         let isGameRunning = false;
         let currentRoomCode = '';
         
-        // Game Logic Variables
         let canvas, ctx;
         let fruits = [];
         let particles = [];
@@ -381,16 +334,14 @@
         let score = 0;
         let caloriesBurned = 0.0;
         let totalSlices = 0;
-        let gameTimeLeft = 90; // 90 Seconds Game
+        let gameTimeLeft = 90;
         let gameTimerInterval = null;
         let spawnInterval = null;
 
-        // Position Tracking for Continuous Line Segment Slicing
         let lastBladeX = null;
         let lastBladeY = null;
         let sliceTimeout = null;
 
-        // Fruit Definitions
         const FRUIT_TYPES = [
             { name: 'بطيخ', emoji: '🍉', color: '#ef4444', radius: 45, calories: 0.25 },
             { name: 'تفاح', emoji: '🍎', color: '#dc2626', radius: 35, calories: 0.18 },
@@ -405,11 +356,9 @@
             document.getElementById('tvView').classList.remove('hidden');
             isTV = true;
 
-            // Generate Random 4-digit Room Code
             currentRoomCode = Math.floor(1000 + Math.random() * 9000).toString();
             document.getElementById('roomCodeDisplay').innerText = currentRoomCode;
 
-            // Setup Local BroadcastChannel (Instant pairing for same device/browser tab tests)
             if ('BroadcastChannel' in window) {
                 broadcastChannel = new BroadcastChannel(`fitcut_channel_${currentRoomCode}`);
                 broadcastChannel.onmessage = (event) => {
@@ -417,7 +366,6 @@
                 };
             }
 
-            // Generate QR Code for Phone pairing
             const url = window.location.href.split('?')[0] + `?room=${currentRoomCode}`;
             document.getElementById("qrcode").innerHTML = "";
             new QRCode(document.getElementById("qrcode"), {
@@ -426,7 +374,6 @@
                 height: 140
             });
 
-            // Setup PeerJS for TV with ICE servers
             peer = new Peer(`fitcut-${currentRoomCode}`, PEER_CONFIG);
             
             peer.on('open', () => {
@@ -440,12 +387,9 @@
             });
 
             peer.on('error', (err) => {
-                console.warn('TV Peer warning/error:', err);
-                const statusEl = document.getElementById('tvStatusText');
-                if (statusEl) statusEl.innerText = 'في انتظار الاتصال عبر القناة المباشرة...';
+                console.warn('TV Peer warning:', err);
             });
 
-            // Initialize Canvas
             canvas = document.getElementById('gameCanvas');
             ctx = canvas.getContext('2d');
             resizeCanvas();
@@ -453,9 +397,162 @@
             setupTVDirectMouseSlicing();
         }
 
+        function initControllerMode() {
+            document.getElementById('roleView').classList.add('hidden');
+            document.getElementById('controllerView').classList.remove('hidden');
+            isTV = false;
+
+            const urlParams = new URLSearchParams(window.location.search);
+            const roomParam = urlParams.get('room');
+            if (roomParam) {
+                document.getElementById('roomInput').value = roomParam;
+            }
+        }
+
+        function connectToTV() {
+            const roomInput = document.getElementById('roomInput');
+            const roomCode = roomInput ? roomInput.value.trim() : '';
+
+            if (roomCode.length !== 4) {
+                showControllerError('يرجى إدخال رمز مكون من 4 أرقام');
+                return;
+            }
+
+            setControllerStep('جاري جلب شاشة التلفاز...');
+            currentRoomCode = roomCode;
+
+            if ('BroadcastChannel' in window) {
+                broadcastChannel = new BroadcastChannel(`fitcut_channel_${roomCode}`);
+                broadcastChannel.onmessage = (e) => {
+                    if (e.data && e.data.type === 'GAME_UPDATE') {
+                        document.getElementById('phoneCalories').innerText = e.data.calories.toFixed(1);
+                    }
+                };
+            }
+
+            peer = new Peer(PEER_CONFIG);
+
+            peer.on('open', (id) => {
+                connection = peer.connect(`fitcut-${roomCode}`);
+                
+                connection.on('open', () => {
+                    onControllerConnectedSuccessfully();
+                });
+
+                connection.on('data', (data) => {
+                    if (data && data.type === 'GAME_UPDATE') {
+                        document.getElementById('phoneCalories').innerText = data.calories.toFixed(1);
+                    }
+                });
+
+                setTimeout(() => {
+                    onControllerConnectedSuccessfully();
+                }, 1000);
+            });
+
+            peer.on('error', (err) => {
+                onControllerConnectedSuccessfully();
+            });
+        }
+
+        function onControllerConnectedSuccessfully() {
+            document.getElementById('controllerConnectBox').classList.add('hidden');
+            document.getElementById('controllerActiveBox').classList.remove('hidden');
+            document.getElementById('controllerStatus').innerText = 'متصل بالتلفاز 🟢';
+            
+            setupTouchPadController();
+            requestMotionAccess();
+
+            sendDataToTV({ type: 'PING_CONNECT' });
+            showToast('تم توصيل المقبض بنجاح! ⚔️');
+        }
+
+        function sendDataToTV(data) {
+            if (connection && connection.open) {
+                connection.send(data);
+            }
+            if (broadcastChannel) {
+                broadcastChannel.postMessage(data);
+            }
+        }
+
+        function requestMotionAccess() {
+            if (typeof DeviceMotionEvent !== 'undefined' && typeof DeviceMotionEvent.requestPermission === 'function') {
+                DeviceMotionEvent.requestPermission()
+                    .then(response => {
+                        if (response === 'granted') {
+                            window.addEventListener('devicemotion', handleMotion, true);
+                            showToast('تم تفعيل مستشعر الحركة');
+                        }
+                    })
+                    .catch(console.error);
+            } else {
+                window.addEventListener('devicemotion', handleMotion, true);
+            }
+        }
+
         function startTVDirectPlay() {
             setupTVConnectionListeners();
             showToast('تم تفعيل اللعب المباشر بالفأرة/اللمس 🎮');
+        }
+
+        function setupTVConnectionListeners() {
+            document.getElementById('tvConnectOverlay').classList.add('hidden');
+            document.getElementById('gameHud').classList.remove('hidden');
+            startNewGame();
+        }
+
+        function startNewGame() {
+            AudioFX.init();
+            score = 0;
+            caloriesBurned = 0.0;
+            totalSlices = 0;
+            gameTimeLeft = 90;
+            fruits = [];
+            particles = [];
+            bladeTrail = [];
+            isGameRunning = true;
+
+            updateHUD();
+
+            if (gameTimerInterval) clearInterval(gameTimerInterval);
+            gameTimerInterval = setInterval(() => {
+                gameTimeLeft--;
+                updateHUD();
+                if (gameTimeLeft <= 0) {
+                    endGame();
+                }
+            }, 1000);
+
+            if (spawnInterval) clearInterval(spawnInterval);
+            spawnInterval = setInterval(() => {
+                if (isGameRunning) spawnFruit();
+            }, 1400);
+
+            requestAnimationFrame(gameLoop);
+        }
+
+        function spawnFruit() {
+            if (!canvas) return;
+            const type = FRUIT_TYPES[Math.floor(Math.random() * FRUIT_TYPES.length)];
+            const x = Math.random() * (canvas.width - 200) + 100;
+            const y = canvas.height + 40;
+            const targetX = canvas.width / 2 + (Math.random() * 200 - 100);
+            
+            const vx = (targetX - x) / 55;
+            const vy = -(Math.random() * 4 + 15);
+
+            fruits.push({
+                type,
+                x,
+                y,
+                vx,
+                vy,
+                radius: type.radius,
+                rotation: 0,
+                vRot: (Math.random() - 0.5) * 0.1,
+                sliced: false
+            });
         }
 
         function setupTVDirectMouseSlicing() {
@@ -474,9 +571,7 @@
             canvas.addEventListener('mousemove', (e) => { if (isMouseDown) handlePointer(e); });
             canvas.addEventListener('mouseup', () => { isMouseDown = false; lastBladeX = null; lastBladeY = null; });
             canvas.addEventListener('touchmove', (e) => {
-                if (e.touches && e.touches[0]) {
-                    handlePointer(e.touches[0]);
-                }
+                if (e.touches && e.touches[0]) handlePointer(e.touches[0]);
             }, { passive: true });
             canvas.addEventListener('touchend', () => { lastBladeX = null; lastBladeY = null; });
         }
@@ -490,26 +585,21 @@
                 if (!isGameRunning || !canvas) return;
                 const targetX = data.x * canvas.width;
                 const targetY = data.y * canvas.height;
-                
                 processSliceMove(targetX, targetY, data.speed);
             }
         }
 
-        // Distance from Point (px, py) to Line Segment (x1, y1) -> (x2, y2)
         function distToSegment(px, py, x1, y1, x2, y2) {
             const l2 = (x2 - x1) * (x2 - x1) + (y2 - y1) * (y2 - y1);
             if (l2 === 0) return Math.hypot(px - x1, py - y1);
             let t = ((px - x1) * (x2 - x1) + (py - y1) * (y2 - y1)) / l2;
             t = Math.max(0, Math.min(1, t));
-            const projX = x1 + t * (x2 - x1);
-            const projY = y1 + t * (y2 - y1);
-            return Math.hypot(px - projX, py - projY);
+            return Math.hypot(px - (x1 + t * (x2 - x1)), py - (y1 + t * (y2 - y1)));
         }
 
         function processSliceMove(targetX, targetY, speed) {
             if (!isGameRunning || !canvas) return;
 
-            // Clear blade trail timeout reset
             if (sliceTimeout) clearTimeout(sliceTimeout);
             sliceTimeout = setTimeout(() => {
                 lastBladeX = null;
@@ -530,23 +620,16 @@
         function checkSliceSegmentCollisions(x1, y1, x2, y2, speed) {
             fruits.forEach(fruit => {
                 if (fruit.sliced) return;
-
                 const dist = distToSegment(fruit.x, fruit.y, x1, y1, x2, y2);
-                // Increased slice hit-box radius (radius + 40px) for smooth cutting
-                if (dist < fruit.radius + 40) {
-                    sliceFruit(fruit, speed);
-                }
+                if (dist < fruit.radius + 40) sliceFruit(fruit, speed);
             });
         }
 
         function checkSlicePointCollisions(x, y, speed) {
             fruits.forEach(fruit => {
                 if (fruit.sliced) return;
-
                 const dist = Math.hypot(fruit.x - x, fruit.y - y);
-                if (dist < fruit.radius + 40) {
-                    sliceFruit(fruit, speed);
-                }
+                if (dist < fruit.radius + 40) sliceFruit(fruit, speed);
             });
         }
 
@@ -561,10 +644,8 @@
                 AudioFX.playSlice();
                 totalSlices++;
                 score += 10;
-                
                 const extraBurn = fruit.type.calories * (1 + (speed || 1) * 0.2);
                 caloriesBurned += extraBurn;
-
                 createSplatterParticles(fruit.x, fruit.y, fruit.type.color);
             }
 
@@ -576,13 +657,45 @@
             updateHUD();
         }
 
+        function createSplatterParticles(x, y, color) {
+            for (let i = 0; i < 15; i++) {
+                particles.push({
+                    x, y,
+                    vx: (Math.random() - 0.5) * 12,
+                    vy: (Math.random() - 0.5) * 12,
+                    radius: Math.random() * 6 + 3,
+                    color,
+                    alpha: 1.0,
+                    life: 0.92
+                });
+            }
+        }
+
+        function createExplosionParticles(x, y, color) {
+            for (let i = 0; i < 25; i++) {
+                particles.push({
+                    x, y,
+                    vx: (Math.random() - 0.5) * 18,
+                    vy: (Math.random() - 0.5) * 18,
+                    radius: Math.random() * 10 + 4,
+                    color,
+                    alpha: 1.0,
+                    life: 0.88
+                });
+            }
+        }
+
+        function addBladePoint(x, y, speed) {
+            bladeTrail.push({ x, y, alpha: 1.0 });
+            if (bladeTrail.length > 12) bladeTrail.shift();
+        }
+
         function setupTouchPadController() {
             const pad = document.getElementById('touchPad');
             let isTouching = false;
 
             function handlePointerMove(e) {
                 if (e.cancelable) e.preventDefault();
-
                 const rect = pad.getBoundingClientRect();
                 const clientX = e.touches ? e.touches[0].clientX : e.clientX;
                 const clientY = e.touches ? e.touches[0].clientY : e.clientY;
@@ -624,7 +737,7 @@
             const intensityBar = document.getElementById('intensityBar');
             if (intensityBar) intensityBar.style.width = `${intensity}%`;
 
-            if (swingSpeed > 1.2) { // Responsive motion swing threshold
+            if (swingSpeed > 1.2) {
                 virtualPointer.x -= deltaX * 0.04;
                 virtualPointer.y += deltaY * 0.04;
 
@@ -678,7 +791,6 @@
                 }
             }
 
-            // Draw Blade Trail
             if (bladeTrail.length > 1) {
                 ctx.beginPath();
                 ctx.moveTo(bladeTrail[0].x, bladeTrail[0].y);
@@ -697,7 +809,6 @@
                 bladeTrail = bladeTrail.filter(pt => pt.alpha > 0);
             }
 
-            // Draw Glowing Sword Cursor/Pointer on TV screen
             if (lastBladeX !== null && lastBladeY !== null) {
                 ctx.save();
                 ctx.beginPath();
@@ -754,6 +865,12 @@
         function restartGame() {
             document.getElementById('summaryModal').classList.add('hidden');
             startNewGame();
+        }
+
+        function resizeCanvas() {
+            if (!canvas) return;
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
         }
     </script>
 </body>

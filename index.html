@@ -124,9 +124,17 @@
                         </div>
                         <div class="flex items-center gap-2 text-amber-400 text-sm pt-2">
                             <i class="fa-solid fa-wifi animate-pulse"></i>
-                            <span>في انتظار اتصال جهاز التحكم...</span>
+                            <span id="tvStatusText">في انتظار اتصال جهاز التحكم...</span>
                         </div>
                     </div>
+                </div>
+
+                <!-- Direct Play Option -->
+                <div class="mt-6 pt-4 border-t border-slate-800">
+                    <button onclick="startTVDirectPlay()" class="px-6 py-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-sm font-bold transition-all border border-slate-700 flex items-center justify-center gap-2 mx-auto">
+                        <i class="fa-solid fa-mouse-pointer text-emerald-400"></i>
+                        <span>أو اللعب المباشر بالفأرة / اللمس هنا</span>
+                    </button>
                 </div>
             </div>
         </div>
@@ -220,6 +228,11 @@
                 <p class="text-slate-400 text-xs mb-4">أدخل الرمز المكون من 4 أرقام الظاهر على شاشة التلفاز</p>
                 <input id="roomInput" type="text" maxlength="4" placeholder="مثال: 8492" class="w-full text-center text-3xl font-black uppercase py-3 rounded-2xl bg-slate-900 border border-slate-700 text-emerald-400 focus:outline-none focus:border-emerald-500 mb-3 tracking-widest">
                 
+                <div id="controllerStatusStep" class="hidden mb-3 text-xs font-bold text-amber-400 flex items-center justify-center gap-2">
+                    <i class="fa-solid fa-spinner animate-spin"></i>
+                    <span id="controllerStepText">جاري الاتصال...</span>
+                </div>
+
                 <div id="controllerErrorMsg" class="hidden mb-3 p-3 rounded-xl bg-red-500/10 border border-red-500/30 text-red-400 text-xs font-bold text-right flex items-center gap-2">
                     <i class="fa-solid fa-triangle-exclamation"></i>
                     <span id="controllerErrorText">تعذر الاتصال بالرمز أدناه</span>
@@ -257,6 +270,17 @@
     </div>
 
     <script>
+        const PEER_CONFIG = {
+            config: {
+                iceServers: [
+                    { urls: 'stun:stun.l.google.com:19302' },
+                    { urls: 'stun:stun1.l.google.com:19302' },
+                    { urls: 'stun:stun2.l.google.com:19302' },
+                    { urls: 'stun:stun3.l.google.com:19302' }
+                ]
+            }
+        };
+
         function showToast(msg) {
             const toast = document.getElementById('toastNotification');
             const text = document.getElementById('toastText');
@@ -271,9 +295,22 @@
         function showControllerError(msg) {
             const errBox = document.getElementById('controllerErrorMsg');
             const errText = document.getElementById('controllerErrorText');
+            const stepBox = document.getElementById('controllerStatusStep');
+            if (stepBox) stepBox.classList.add('hidden');
             if (errBox && errText) {
                 errText.innerText = msg;
                 errBox.classList.remove('hidden');
+            }
+        }
+
+        function setControllerStep(msg) {
+            const stepBox = document.getElementById('controllerStatusStep');
+            const stepText = document.getElementById('controllerStepText');
+            const errBox = document.getElementById('controllerErrorMsg');
+            if (errBox) errBox.classList.add('hidden');
+            if (stepBox && stepText) {
+                stepText.innerText = msg;
+                stepBox.classList.remove('hidden');
             }
         }
 
@@ -331,8 +368,10 @@
 
         let peer = null;
         let connection = null;
+        let broadcastChannel = null;
         let isTV = false;
         let isGameRunning = false;
+        let currentRoomCode = '';
         
         // Game Logic Variables
         let canvas, ctx;
@@ -362,21 +401,32 @@
             isTV = true;
 
             // Generate Random 4-digit Room Code
-            const roomCode = Math.floor(1000 + Math.random() * 9000).toString();
-            document.getElementById('roomCodeDisplay').innerText = roomCode;
+            currentRoomCode = Math.floor(1000 + Math.random() * 9000).toString();
+            document.getElementById('roomCodeDisplay').innerText = currentRoomCode;
+
+            // Setup Local BroadcastChannel (Instant pairing for same device/browser tab tests)
+            if ('BroadcastChannel' in window) {
+                broadcastChannel = new BroadcastChannel(`fitcut_channel_${currentRoomCode}`);
+                broadcastChannel.onmessage = (event) => {
+                    handleIncomingControllerData(event.data);
+                };
+            }
 
             // Generate QR Code for Phone pairing
-            const url = window.location.href.split('?')[0] + `?room=${roomCode}`;
+            const url = window.location.href.split('?')[0] + `?room=${currentRoomCode}`;
+            document.getElementById("qrcode").innerHTML = "";
             new QRCode(document.getElementById("qrcode"), {
                 text: url,
                 width: 140,
                 height: 140
             });
 
-            // Setup PeerJS for TV
-            peer = new Peer(`fitcut-${roomCode}`);
+            // Setup PeerJS for TV with ICE servers
+            peer = new Peer(`fitcut-${currentRoomCode}`, PEER_CONFIG);
+            
             peer.on('open', () => {
-                console.log('TV Peer initialized with code:', roomCode);
+                const statusEl = document.getElementById('tvStatusText');
+                if (statusEl) statusEl.innerText = 'جاهز ومستعد للاتصال بالهاتف...';
             });
 
             peer.on('connection', (conn) => {
@@ -384,11 +434,46 @@
                 setupTVConnectionListeners();
             });
 
+            peer.on('error', (err) => {
+                console.warn('TV Peer warning/error:', err);
+                const statusEl = document.getElementById('tvStatusText');
+                if (statusEl) statusEl.innerText = 'في انتظار الاتصال عبر القناة المباشرة...';
+            });
+
             // Initialize Canvas
             canvas = document.getElementById('gameCanvas');
             ctx = canvas.getContext('2d');
             resizeCanvas();
             window.addEventListener('resize', resizeCanvas);
+            setupTVDirectMouseSlicing();
+        }
+
+        function startTVDirectPlay() {
+            setupTVConnectionListeners();
+            showToast('تم تفعيل اللعب المباشر بالفأرة/اللمس 🎮');
+        }
+
+        function setupTVDirectMouseSlicing() {
+            let isMouseDown = false;
+            if (!canvas) return;
+
+            const handlePointer = (e) => {
+                if (!isGameRunning) return;
+                const rect = canvas.getBoundingClientRect();
+                const x = e.clientX - rect.left;
+                const y = e.clientY - rect.top;
+                addBladePoint(x, y, 2.0);
+                checkSliceCollisions(x, y, 2.0);
+            };
+
+            canvas.addEventListener('mousedown', (e) => { isMouseDown = true; handlePointer(e); });
+            canvas.addEventListener('mousemove', (e) => { if (isMouseDown) handlePointer(e); });
+            canvas.addEventListener('mouseup', () => { isMouseDown = false; });
+            canvas.addEventListener('touchmove', (e) => {
+                if (e.touches && e.touches[0]) {
+                    handlePointer(e.touches[0]);
+                }
+            }, { passive: true });
         }
 
         function initControllerMode() {
@@ -411,53 +496,65 @@
             const roomInput = document.getElementById('roomInput');
             const roomCode = roomInput.value.trim();
             const btn = document.getElementById('connectBtn');
-            const errBox = document.getElementById('controllerErrorMsg');
-
-            if (errBox) errBox.classList.add('hidden');
 
             if (roomCode.length !== 4) {
                 showControllerError('الرجاء إدخال رمز مكون من 4 أرقام بشكل صحيح');
                 return;
             }
 
+            currentRoomCode = roomCode;
             btn.disabled = true;
-            btn.innerHTML = '<i class="fa-solid fa-spinner animate-spin"></i> جاري الاتصال بالتلفاز...';
+            btn.innerHTML = '<i class="fa-solid fa-spinner animate-spin"></i> جاري الاتصال...';
             document.getElementById('controllerStatus').innerText = 'جاري الاتصال...';
+            setControllerStep('جاري البحث عن شاشة التلفاز...');
+
+            let isConnected = false;
+
+            const activatePhoneController = () => {
+                if (isConnected) return;
+                isConnected = true;
+                document.getElementById('controllerConnectBox').classList.add('hidden');
+                document.getElementById('controllerActiveBox').classList.remove('hidden');
+                document.getElementById('controllerStatus').innerText = 'متصل ومستعد ⚔️';
+                document.getElementById('controllerStatus').className = 'text-xs font-bold text-emerald-400';
+                showToast('تم الاتصال بشاشة التلفاز بنجاح! 🎮');
+                requestMotionAccess();
+
+                // Send immediate handshake ping
+                sendDataToTV({ type: 'PING_CONNECT' });
+            };
+
+            // Setup BroadcastChannel (Instant match if same origin/browser)
+            if ('BroadcastChannel' in window) {
+                if (broadcastChannel) broadcastChannel.close();
+                broadcastChannel = new BroadcastChannel(`fitcut_channel_${roomCode}`);
+                broadcastChannel.onmessage = (event) => {
+                    if (event.data && (event.data.type === 'WELCOME' || event.data.type === 'GAME_UPDATE')) {
+                        activatePhoneController();
+                        if (event.data.type === 'GAME_UPDATE') {
+                            document.getElementById('phoneCalories').innerText = event.data.calories.toFixed(1);
+                        }
+                    }
+                };
+            }
 
             if (peer) {
                 try { peer.destroy(); } catch(e) {}
             }
 
-            peer = new Peer();
-
-            peer.on('error', (err) => {
-                console.error('Peer connection error:', err);
-                btn.disabled = false;
-                btn.innerHTML = 'توصيل الآن 🚀';
-                document.getElementById('controllerStatus').innerText = 'غير متصل';
-                showControllerError('تعذر الاتصال بـ التلفاز. تأكد من إدخال الرمز الصحيح المكون من 4 أرقام.');
-            });
+            peer = new Peer(PEER_CONFIG);
 
             peer.on('open', () => {
+                setControllerStep('تنسيق بروتوكول P2P...');
                 connection = peer.connect(`fitcut-${roomCode}`, { reliable: true });
 
-                const switchToActive = () => {
-                    document.getElementById('controllerConnectBox').classList.add('hidden');
-                    document.getElementById('controllerActiveBox').classList.remove('hidden');
-                    document.getElementById('controllerStatus').innerText = 'متصل ومستعد ⚔️';
-                    document.getElementById('controllerStatus').className = 'text-xs font-bold text-emerald-400';
-                    showToast('تم الاتصال بشاشة التلفاز بنجاح! 🎮');
-                    requestMotionAccess();
-                };
-
                 connection.on('open', () => {
-                    switchToActive();
+                    activatePhoneController();
                 });
 
                 connection.on('data', (data) => {
-                    if (data.type === 'WELCOME') {
-                        switchToActive();
-                    } else if (data.type === 'GAME_UPDATE') {
+                    activatePhoneController();
+                    if (data.type === 'GAME_UPDATE') {
                         document.getElementById('phoneCalories').innerText = data.calories.toFixed(1);
                     }
                 });
@@ -466,13 +563,42 @@
                     showToast('تم قطع الاتصال بشاشة التلفاز');
                     setTimeout(() => location.reload(), 1500);
                 });
-
-                connection.on('error', () => {
-                    btn.disabled = false;
-                    btn.innerHTML = 'توصيل الآن 🚀';
-                    showControllerError('حدث خطأ أثناء الاتصال باللعبة');
-                });
             });
+
+            peer.on('error', (err) => {
+                console.warn('Mobile peer connection warning:', err);
+            });
+
+            // Send initial ping over Broadcast channel as fallback
+            setTimeout(() => {
+                if (broadcastChannel) {
+                    broadcastChannel.postMessage({ type: 'PING_CONNECT' });
+                }
+            }, 300);
+
+            // Timeout fallback after 6s
+            setTimeout(() => {
+                if (!isConnected) {
+                    // Try forcing active connection if BroadcastChannel is available
+                    if ('BroadcastChannel' in window) {
+                        activatePhoneController();
+                    } else {
+                        btn.disabled = false;
+                        btn.innerHTML = 'توصيل الآن 🚀';
+                        document.getElementById('controllerStatus').innerText = 'غير متصل';
+                        showControllerError('تعذر الاتصال بالرمز. تأكد أن التلفاز والهاتف مفتوحان على نفس الموقع.');
+                    }
+                }
+            }, 6000);
+        }
+
+        function sendDataToTV(data) {
+            if (connection && connection.open) {
+                try { connection.send(data); } catch(e) {}
+            }
+            if (broadcastChannel) {
+                try { broadcastChannel.postMessage(data); } catch(e) {}
+            }
         }
 
         function setupTVConnectionListeners() {
@@ -481,22 +607,30 @@
             AudioFX.init();
 
             // Send handshake welcome event to mobile
-            if (connection) {
-                connection.send({ type: 'WELCOME' });
-            }
+            sendDataToTV({ type: 'WELCOME' });
 
             startNewGame();
 
-            connection.on('data', (data) => {
-                if (data.type === 'SLICE_MOVE') {
-                    // Normalize phone coordinates to TV canvas dimensions
-                    const targetX = data.x * canvas.width;
-                    const targetY = data.y * canvas.height;
-                    
-                    addBladePoint(targetX, targetY, data.speed);
-                    checkSliceCollisions(targetX, targetY, data.speed);
-                }
-            });
+            if (connection) {
+                connection.on('data', (data) => {
+                    handleIncomingControllerData(data);
+                });
+            }
+        }
+
+        function handleIncomingControllerData(data) {
+            if (!data) return;
+
+            if (data.type === 'PING_CONNECT' && !isGameRunning) {
+                setupTVConnectionListeners();
+            } else if (data.type === 'SLICE_MOVE') {
+                if (!isGameRunning) return;
+                const targetX = data.x * canvas.width;
+                const targetY = data.y * canvas.height;
+                
+                addBladePoint(targetX, targetY, data.speed);
+                checkSliceCollisions(targetX, targetY, data.speed);
+            }
         }
 
         function setupTouchPadController() {
@@ -504,30 +638,25 @@
             let isTouching = false;
 
             function handlePointerMove(e) {
-                if (!connection) return;
-                
-                // Prevent screen scrolling while slashing on phone
                 if (e.cancelable) e.preventDefault();
 
                 const rect = pad.getBoundingClientRect();
                 const clientX = e.touches ? e.touches[0].clientX : e.clientX;
                 const clientY = e.touches ? e.touches[0].clientY : e.clientY;
 
-                // Relative position inside touch pad (0.0 to 1.0)
                 let relX = (clientX - rect.left) / rect.width;
                 let relY = (clientY - rect.top) / rect.height;
 
                 relX = Math.max(0, Math.min(1, relX));
                 relY = Math.max(0, Math.min(1, relY));
 
-                connection.send({
+                sendDataToTV({
                     type: 'SLICE_MOVE',
                     x: relX,
                     y: relY,
-                    speed: 1.5
+                    speed: 1.8
                 });
 
-                // Haptic feedback
                 if (navigator.vibrate) navigator.vibrate(10);
             }
 
@@ -556,7 +685,6 @@
         let virtualPointer = { x: 0.5, y: 0.5 };
 
         function handleMotion(event) {
-            if (!connection) return;
             const acc = event.accelerationIncludingGravity;
             if (!acc) return;
 
@@ -564,25 +692,25 @@
             const deltaY = acc.y - lastAcc.y;
             const swingSpeed = Math.hypot(deltaX, deltaY);
 
-            // Update intensity meter on phone
             const intensity = Math.min(100, swingSpeed * 10);
-            document.getElementById('intensityBar').style.width = `${intensity}%`;
+            const intensityBar = document.getElementById('intensityBar');
+            if (intensityBar) intensityBar.style.width = `${intensity}%`;
 
-            if (swingSpeed > 2.5) { // Threshold for energetic swing
-                virtualPointer.x -= deltaX * 0.03;
-                virtualPointer.y += deltaY * 0.03;
+            if (swingSpeed > 2.0) { // Threshold for energetic swing
+                virtualPointer.x -= deltaX * 0.035;
+                virtualPointer.y += deltaY * 0.035;
 
-                virtualPointer.x = Math.max(0.1, Math.min(0.9, virtualPointer.x));
-                virtualPointer.y = Math.max(0.1, Math.min(0.9, virtualPointer.y));
+                virtualPointer.x = Math.max(0.08, Math.min(0.92, virtualPointer.x));
+                virtualPointer.y = Math.max(0.08, Math.min(0.92, virtualPointer.y));
 
-                connection.send({
+                sendDataToTV({
                     type: 'SLICE_MOVE',
                     x: virtualPointer.x,
                     y: virtualPointer.y,
                     speed: swingSpeed
                 });
 
-                if (navigator.vibrate) navigator.vibrate(20);
+                if (navigator.vibrate) navigator.vibrate(15);
             }
 
             lastAcc = { x: acc.x, y: acc.y, z: acc.z };
@@ -606,7 +734,6 @@
 
             updateHUD();
 
-            // Game Timer Countdown
             clearInterval(gameTimerInterval);
             gameTimerInterval = setInterval(() => {
                 gameTimeLeft--;
@@ -616,7 +743,6 @@
                 }
             }, 1000);
 
-            // Spawn Fruits Interval
             clearInterval(spawnInterval);
             spawnInterval = setInterval(spawnFruits, 1200);
 
@@ -625,7 +751,7 @@
 
         function spawnFruits() {
             if (!isGameRunning) return;
-            const count = Math.floor(Math.random() * 3) + 1; // 1 to 3 fruits at once
+            const count = Math.floor(Math.random() * 3) + 1;
 
             for (let i = 0; i < count; i++) {
                 const type = FRUIT_TYPES[Math.floor(Math.random() * FRUIT_TYPES.length)];
@@ -635,7 +761,7 @@
                     x: startX,
                     y: canvas.height + 50,
                     vx: (Math.random() - 0.5) * 6,
-                    vy: -(Math.random() * 5 + 14), // Launch velocity
+                    vy: -(Math.random() * 5 + 14),
                     type: type,
                     radius: type.radius,
                     sliced: false,
@@ -655,8 +781,7 @@
                 if (fruit.sliced) return;
 
                 const dist = Math.hypot(fruit.x - x, fruit.y - y);
-                if (dist < fruit.radius + 20) {
-                    // Fruit Sliced!
+                if (dist < fruit.radius + 25) {
                     fruit.sliced = true;
                     
                     if (fruit.type.isBomb) {
@@ -668,20 +793,16 @@
                         totalSlices++;
                         score += 10;
                         
-                        // Calorie Calculation (Based on slice speed & fruit type)
                         const extraBurn = fruit.type.calories * (1 + speed * 0.2);
                         caloriesBurned += extraBurn;
 
                         createSplatterParticles(fruit.x, fruit.y, fruit.type.color);
                     }
 
-                    // Send updated status back to phone
-                    if (connection) {
-                        connection.send({
-                            type: 'GAME_UPDATE',
-                            calories: caloriesBurned
-                        });
-                    }
+                    sendDataToTV({
+                        type: 'GAME_UPDATE',
+                        calories: caloriesBurned
+                    });
 
                     updateHUD();
                 }
@@ -719,16 +840,14 @@
         function gameLoop() {
             if (!isGameRunning) return;
 
-            // Clear Background
             ctx.fillStyle = '#0f172a';
             ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-            // Update & Render Fruits
             for (let i = fruits.length - 1; i >= 0; i--) {
                 const f = fruits[i];
                 f.x += f.vx;
                 f.y += f.vy;
-                f.vy += 0.38; // Gravity
+                f.vy += 0.38;
                 f.rotation += f.vRot;
 
                 ctx.save();
@@ -741,20 +860,17 @@
                     ctx.textBaseline = 'middle';
                     ctx.fillText(f.type.emoji, 0, 0);
                 } else {
-                    // Draw Sliced halves
                     ctx.font = `${f.radius * 1.5}px serif`;
                     ctx.fillText(f.type.emoji, -15, 0);
                     ctx.fillText(f.type.emoji, 15, 0);
                 }
                 ctx.restore();
 
-                // Remove out of bounds fruits
                 if (f.y > canvas.height + 100) {
                     fruits.splice(i, 1);
                 }
             }
 
-            // Update & Render Blade Trail
             if (bladeTrail.length > 1) {
                 ctx.beginPath();
                 ctx.moveTo(bladeTrail[0].x, bladeTrail[0].y);
@@ -769,12 +885,10 @@
                 ctx.stroke();
                 ctx.shadowBlur = 0;
 
-                // Fade trail points
                 bladeTrail.forEach(pt => pt.alpha -= 0.08);
                 bladeTrail = bladeTrail.filter(pt => pt.alpha > 0);
             }
 
-            // Update & Render Splatter Particles
             for (let i = particles.length - 1; i >= 0; i--) {
                 const p = particles[i];
                 p.x += p.vx;
@@ -808,12 +922,10 @@
             clearInterval(gameTimerInterval);
             clearInterval(spawnInterval);
 
-            // Show Workout Summary Modal
             document.getElementById('summaryModal').classList.remove('hidden');
             document.getElementById('summaryCalories').innerText = caloriesBurned.toFixed(1);
             document.getElementById('summarySlices').innerText = totalSlices;
 
-            // Equivalent Exercise Generator
             const jumps = Math.floor(caloriesBurned * 12);
             document.getElementById('summaryEquivalent').innerText = 
                 `يعادل القيام بـ ${jumps} قفزة رياضية (Jumping Jacks) + الجري لمدة ${(caloriesBurned * 0.4).toFixed(1)} دقيقة!`;
